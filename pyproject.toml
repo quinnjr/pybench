@@ -38,9 +38,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/PegasusHeavyIndustries/pybench"
-Repository = "https://github.com/PegasusHeavyIndustries/pybench"
-Issues = "https://github.com/PegasusHeavyIndustries/pybench/issues"
+Homepage = "https://github.com/quinnjr/pybench"
+Repository = "https://github.com/quinnjr/pybench"
+Issues = "https://github.com/quinnjr/pybench/issues"
 
 [project.optional-dependencies]
 rich = ["rich>=13.0"]
