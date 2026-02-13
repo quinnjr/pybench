@@ -71,6 +71,27 @@ class Bench:
         self._results = results
         return results
 
+    def report(self, json_output: bool = False) -> None:
+        """Print benchmark results to stdout."""
+        from pybench.reporter import format_json, format_table
+
+        if not self._results:
+            self.run()
+
+        if json_output:
+            print(format_json(self._results))
+        else:
+            print(format_table(self._results))
+
+    def to_json(self) -> str:
+        """Return benchmark results as a JSON string."""
+        from pybench.reporter import format_json
+
+        if not self._results:
+            self.run()
+
+        return format_json(self._results)
+
 
 def benchmark(fn=None, /, *, warmup=None, iterations=None):
     """Module-level decorator that registers benchmarks in the global registry."""
