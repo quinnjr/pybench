@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pybench &mdash; Lightweight Python Benchmarking</title>
+    <meta name="description" content="A zero-dependency Python benchmarking library with decorator and context manager APIs, CLI, and run comparison.">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+
+    <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pyblue: {
+              50: '#e8f0f7',
+              100: '#c5d9ec',
+              200: '#9dbfe0',
+              300: '#74a5d3',
+              400: '#4b8bbe',
+              500: '#306998',
+              600: '#27557a',
+              700: '#1e415c',
+              800: '#152d3e',
+              900: '#0b1920',
+            },
+            pygold: {
+              50: '#fffbeb',
+              100: '#fff3c4',
+              200: '#ffe873',
+              300: '#ffd43b',
+              400: '#ffc800',
+              500: '#e6b400',
+              600: '#b38d00',
+              700: '#806500',
+              800: '#4d3d00',
+              900: '#1a1400',
+            },
+          },
+          fontFamily: {
+            mono: ['"JetBrains Mono"', 'monospace'],
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+          },
+        },
+      },
+    }
+    </script>
+
+    <style>
+      html { scroll-behavior: smooth; }
+
+      body {
+        font-family: 'Source Serif 4', Georgia, serif;
+        background: #0b1920;
+        color: #c5d9ec;
+      }
+
+      /* Noise texture overlay */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.03;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        background-size: 256px 256px;
+      }
+
+      /* Scrollbar styling */
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: #0b1920; }
+      ::-webkit-scrollbar-thumb { background: #27557a; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #306998; }
+
+      /* Code block syntax colors */
+      .code-block {
+        background: #111d27;
+        border: 1px solid #1e415c;
+        border-radius: 8px;
+        overflow-x: auto;
+        position: relative;
+      }
+      .code-block::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #306998, #ffd43b, #306998);
+      }
+      .code-block pre {
+        margin: 0;
+        padding: 1.25rem 1.5rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        line-height: 1.7;
+        color: #c5d9ec;
+      }
+      .code-block .kw { color: #ffd43b; }
+      .code-block .fn { color: #4b8bbe; }
+      .code-block .st { color: #8ec07c; }
+      .code-block .cm { color: #5c7a8c; font-style: italic; }
+      .code-block .dc { color: #e6b400; }
+      .code-block .nu { color: #d3869b; }
+      .code-block .op { color: #8ec07c; }
+      .code-block .bi { color: #fb4934; }
+      .code-block .pr { color: #c5d9ec; }
+
+      /* Inline code */
+      code:not(pre code) {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.82em;
+        background: #152d3e;
+        border: 1px solid #1e415c;
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+        color: #ffd43b;
+      }
+
+      /* Nav link underline animation */
+      .nav-link {
+        position: relative;
+      }
+      .nav-link::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 0;
+        height: 1px;
+        background: #ffd43b;
+        transition: width 0.3s ease;
+      }
+      .nav-link:hover::after {
+        width: 100%;
+      }
+
+      /* Feature card hover */
+      .feature-card {
+        transition: transform 0.25s ease, border-color 0.25s ease;
+      }
+      .feature-card:hover {
+        transform: translateY(-4px);
+        border-color: #306998;
+      }
+
+      /* Copy button */
+      .copy-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: #1e415c;
+        border: 1px solid #27557a;
+        color: #9dbfe0;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-family: 'JetBrains Mono', monospace;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s ease, background 0.2s ease;
+      }
+      .code-block:hover .copy-btn { opacity: 1; }
+      .copy-btn:hover { background: #306998; }
+
+      /* CLI output styling */
+      .output-block {
+        background: #0d1f2b;
+        border: 1px solid #1e415c;
+        border-radius: 8px;
+        padding: 1.25rem 1.5rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.82rem;
+        line-height: 1.7;
+        color: #74a5d3;
+        overflow-x: auto;
+      }
+      .output-block .hdr { color: #ffd43b; font-weight: 600; }
+      .output-block .sep { color: #27557a; }
+      .output-block .val { color: #c5d9ec; }
+      .output-block .name { color: #8ec07c; }
+      .output-block .faster { color: #b8bb26; }
+      .output-block .slower { color: #fb4934; }
+
+      /* Fade-in animation */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .fade-up {
+        opacity: 0;
+        animation: fadeUp 0.6s ease forwards;
+      }
+      .fade-up-1 { animation-delay: 0.1s; }
+      .fade-up-2 { animation-delay: 0.2s; }
+      .fade-up-3 { animation-delay: 0.3s; }
+      .fade-up-4 { animation-delay: 0.4s; }
+      .fade-up-5 { animation-delay: 0.5s; }
+
+      /* Section divider */
+      .section-rule {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #1e415c, #306998, #1e415c, transparent);
+      }
+
+      /* Anchor offset for fixed nav */
+      section[id] {
+        scroll-margin-top: 80px;
+      }
+
+      /* Table of contents active highlight */
+      .toc-link.active {
+        color: #ffd43b;
+        border-left-color: #ffd43b;
+      }
+
+      /* Shell prompt */
+      .shell-prompt { color: #8ec07c; user-select: none; }
+    </style>
+</head>
+
+<body class="relative min-h-screen">
+
+<!-- ========== NAVIGATION ========== -->
+<nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-pyblue-900/80 border-b border-pyblue-700/50">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <a href="#" class="flex items-center gap-3 group">
+            <div class="w-8 h-8 rounded-md bg-gradient-to-br from-pygold-300 to-pygold-500 flex items-center justify-center">
+                <i class="fa-solid fa-gauge-high text-pyblue-900 text-sm"></i>
+            </div>
+            <span class="font-mono font-bold text-lg text-pyblue-100 tracking-tight">pybench</span>
+        </a>
+        <div class="hidden md:flex items-center gap-8 font-mono text-sm text-pyblue-200">
+            <a href="#features" class="nav-link hover:text-pygold-300 transition-colors">Features</a>
+            <a href="#install" class="nav-link hover:text-pygold-300 transition-colors">Install</a>
+            <a href="#api" class="nav-link hover:text-pygold-300 transition-colors">API</a>
+            <a href="#cli" class="nav-link hover:text-pygold-300 transition-colors">CLI</a>
+            <a href="#reference" class="nav-link hover:text-pygold-300 transition-colors">Reference</a>
+            <a href="https://github.com/quinnjr/pybench" target="_blank" class="text-pyblue-300 hover:text-pygold-300 transition-colors">
+                <i class="fa-brands fa-github text-lg"></i>
+            </a>
+        </div>
+        <button id="mobile-menu-btn" class="md:hidden text-pyblue-200 hover:text-pygold-300">
+            <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+    </div>
+    <!-- Mobile menu -->
+    <div id="mobile-menu" class="hidden md:hidden border-t border-pyblue-700/50 bg-pyblue-900/95 backdrop-blur-md">
+        <div class="px-6 py-4 flex flex-col gap-4 font-mono text-sm text-pyblue-200">
+            <a href="#features" class="hover:text-pygold-300">Features</a>
+            <a href="#install" class="hover:text-pygold-300">Install</a>
+            <a href="#api" class="hover:text-pygold-300">API</a>
+            <a href="#cli" class="hover:text-pygold-300">CLI</a>
+            <a href="#reference" class="hover:text-pygold-300">Reference</a>
+            <a href="https://github.com/quinnjr/pybench" target="_blank" class="hover:text-pygold-300">
+                <i class="fa-brands fa-github"></i> GitHub
+            </a>
+        </div>
+    </div>
+</nav>
+
+
+<!-- ========== HERO ========== -->
+<header class="relative pt-32 pb-20 px-6 overflow-hidden">
+    <!-- Background gradient orbs -->
+    <div class="absolute top-20 -left-32 w-96 h-96 bg-pyblue-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute top-40 right-0 w-80 h-80 bg-pygold-300/5 rounded-full blur-3xl"></div>
+
+    <div class="relative max-w-4xl mx-auto text-center">
+        <div class="fade-up fade-up-1">
+            <span class="inline-flex items-center gap-2 font-mono text-xs tracking-widest uppercase text-pygold-300 border border-pygold-300/20 px-4 py-1.5 rounded-full bg-pygold-300/5 mb-8">
+                <i class="fa-solid fa-bolt text-[0.65rem]"></i>
+                v0.1.0
+            </span>
+        </div>
+        <h1 class="fade-up fade-up-2 font-serif text-5xl md:text-7xl font-bold text-pyblue-50 leading-tight tracking-tight mb-6">
+            Benchmark Python.<br>
+            <span class="bg-gradient-to-r from-pygold-300 to-pygold-200 bg-clip-text text-transparent">Zero dependencies.</span>
+        </h1>
+        <p class="fade-up fade-up-3 font-serif text-xl text-pyblue-200 max-w-2xl mx-auto mb-10 leading-relaxed">
+            A lightweight benchmarking library with decorator and context&nbsp;manager APIs,
+            auto&#8209;calibrating timing, and&nbsp;built&#8209;in run&nbsp;comparison.
+        </p>
+        <div class="fade-up fade-up-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div class="code-block !border-pygold-300/20 !rounded-full">
+                <pre class="!py-2.5 !px-6 text-sm"><span class="shell-prompt">$</span> pip install pybench</pre>
+            </div>
+            <a href="#api" class="inline-flex items-center gap-2 font-mono text-sm bg-pyblue-500 hover:bg-pyblue-400 text-white px-6 py-2.5 rounded-full transition-colors">
+                Get Started <i class="fa-solid fa-arrow-right text-xs"></i>
+            </a>
+        </div>
+    </div>
+</header>
+
+
+<!-- ========== FEATURES ========== -->
+<section id="features" class="py-20 px-6">
+    <div class="max-w-6xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-pyblue-50 text-center mb-4">Why pybench?</h2>
+        <p class="font-serif text-pyblue-300 text-center max-w-xl mx-auto mb-14">
+            Everything you need to measure Python performance. Nothing you don't.
+        </p>
+
+        <div class="grid md:grid-cols-3 gap-6">
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-feather text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">Zero Dependencies</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    Pure stdlib. Uses <code>time.perf_counter_ns()</code> and <code>statistics</code>.
+                    Optional <code>rich</code> for pretty output.
+                </p>
+            </div>
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-wand-magic-sparkles text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">Two APIs</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    <code>@benchmark</code> decorator for functions.
+                    <code>bench.measure()</code> context manager for inline blocks.
+                    Use both together.
+                </p>
+            </div>
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-bullseye text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">Auto&#8209;Calibrating</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    Automatically determines optimal iteration count. Disables GC during measurement.
+                    Nanosecond precision.
+                </p>
+            </div>
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-terminal text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">CLI Included</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    <code>pybench run</code> discovers and executes benchmark files.
+                    Table or JSON output. Save results to disk.
+                </p>
+            </div>
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-code-compare text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">Run Comparison</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    Compare benchmark runs over time. Detect regressions in CI.
+                    Color-coded percentage changes.
+                </p>
+            </div>
+            <div class="feature-card rounded-xl border border-pyblue-700/50 bg-pyblue-800/30 p-7">
+                <div class="w-10 h-10 rounded-lg bg-pygold-300/10 flex items-center justify-center mb-4">
+                    <i class="fa-solid fa-file-code text-pygold-300"></i>
+                </div>
+                <h3 class="font-mono font-semibold text-pyblue-50 mb-2">JSON Export</h3>
+                <p class="text-sm text-pyblue-300 leading-relaxed">
+                    Machine-readable output with platform metadata.
+                    Perfect for CI/CD pipelines and tracking performance over time.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<hr class="section-rule max-w-4xl mx-auto">
+
+
+<!-- ========== INSTALLATION ========== -->
+<section id="install" class="py-20 px-6">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-pyblue-50 mb-4">Installation</h2>
+        <p class="font-serif text-pyblue-300 mb-8 leading-relaxed">
+            pybench requires Python 3.10 or later. Install from PyPI:
+        </p>
+
+        <div class="code-block mb-6">
+            <button class="copy-btn" onclick="copyCode(this)">copy</button>
+            <pre><span class="shell-prompt">$</span> pip install pybench</pre>
+        </div>
+
+        <p class="font-serif text-pyblue-300 mb-4 leading-relaxed">
+            For pretty terminal output with colored tables, install with the <code>rich</code> extra:
+        </p>
+
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">copy</button>
+            <pre><span class="shell-prompt">$</span> pip install pybench[rich]</pre>
+        </div>
+    </div>
+</section>
+
+
+<hr class="section-rule max-w-4xl mx-auto">
+
+
+<!-- ========== API ========== -->
+<section id="api" class="py-20 px-6">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-pyblue-50 mb-4">API Guide</h2>
+        <p class="font-serif text-pyblue-300 mb-12 leading-relaxed">
+            pybench provides two ways to define benchmarks: decorators for functions and context managers for inline blocks.
+        </p>
+
+        <!-- Decorator API -->
+        <div class="mb-16">
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <i class="fa-solid fa-at text-pygold-300 text-base"></i>
+                Decorator API
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Decorate functions with <code>@benchmark</code> to register them for benchmarking.
+                The function will be called repeatedly with automatic warmup and iteration calibration.
+            </p>
+
+            <div class="code-block mb-6">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="kw">import</span> <span class="fn">pybench</span>
+
+bench = <span class="fn">Bench</span>()
+
+<span class="dc">@bench.benchmark</span>
+<span class="kw">def</span> <span class="fn">sort_list</span>():
+    <span class="bi">sorted</span>([<span class="nu">3</span>, <span class="nu">1</span>, <span class="nu">4</span>, <span class="nu">1</span>, <span class="nu">5</span>, <span class="nu">9</span>, <span class="nu">2</span>, <span class="nu">6</span>] * <span class="nu">1000</span>)
+
+<span class="dc">@bench.benchmark</span>(warmup=<span class="nu">10</span>, iterations=<span class="nu">200</span>)
+<span class="kw">def</span> <span class="fn">hash_string</span>():
+    <span class="bi">hash</span>(<span class="st">"hello"</span> * <span class="nu">1000</span>)
+
+bench.run()
+bench.report()</pre>
+            </div>
+
+            <p class="font-serif text-sm text-pyblue-400 leading-relaxed">
+                <i class="fa-solid fa-circle-info text-pyblue-500 mr-1"></i>
+                Use <code>@bench.benchmark</code> without parentheses for default settings,
+                or pass <code>warmup</code> and <code>iterations</code> to override.
+            </p>
+        </div>
+
+        <!-- Context Manager API -->
+        <div class="mb-16">
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <i class="fa-solid fa-stopwatch text-pygold-300 text-base"></i>
+                Context Manager API
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Use <code>bench.measure()</code> to time arbitrary blocks of code inline.
+                Ideal for comparing different approaches side by side.
+            </p>
+
+            <div class="code-block mb-6">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="kw">from</span> <span class="fn">pybench</span> <span class="kw">import</span> <span class="fn">Bench</span>
+
+bench = <span class="fn">Bench</span>()
+
+<span class="kw">with</span> bench.<span class="fn">measure</span>(<span class="st">"list comprehension"</span>):
+    [x ** <span class="nu">2</span> <span class="kw">for</span> x <span class="kw">in</span> <span class="bi">range</span>(<span class="nu">10_000</span>)]
+
+<span class="kw">with</span> bench.<span class="fn">measure</span>(<span class="st">"map + lambda"</span>):
+    <span class="bi">list</span>(<span class="bi">map</span>(<span class="kw">lambda</span> x: x ** <span class="nu">2</span>, <span class="bi">range</span>(<span class="nu">10_000</span>)))
+
+bench.report()</pre>
+            </div>
+        </div>
+
+        <!-- Mixed usage -->
+        <div class="mb-16">
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <i class="fa-solid fa-shuffle text-pygold-300 text-base"></i>
+                Mixing Both
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Decorators and context managers work together on the same <code>Bench</code> instance.
+                All results are collected and reported together.
+            </p>
+
+            <div class="code-block mb-6">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="kw">from</span> <span class="fn">pybench</span> <span class="kw">import</span> <span class="fn">Bench</span>
+
+bench = <span class="fn">Bench</span>(warmup=<span class="nu">5</span>, iterations=<span class="nu">100</span>)
+
+<span class="dc">@bench.benchmark</span>
+<span class="kw">def</span> <span class="fn">dict_merge</span>():
+    {**{<span class="st">"a"</span>: <span class="nu">1</span>}, **{<span class="st">"b"</span>: <span class="nu">2</span>}}
+
+<span class="kw">with</span> bench.<span class="fn">measure</span>(<span class="st">"dict union"</span>):
+    {<span class="st">"a"</span>: <span class="nu">1</span>} | {<span class="st">"b"</span>: <span class="nu">2</span>}
+
+results = bench.run()
+
+<span class="cm"># Print a formatted table</span>
+bench.report()
+
+<span class="cm"># Or get JSON for CI</span>
+json_str = bench.to_json()</pre>
+            </div>
+        </div>
+
+        <!-- Sample output -->
+        <div>
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <i class="fa-solid fa-table text-pygold-300 text-base"></i>
+                Sample Output
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                <code>bench.report()</code> prints a formatted table to stdout:
+            </p>
+
+            <div class="output-block">
+<span class="hdr">pybench results</span>
+<span class="sep">────────────────────────────────────────────────────────────────────────</span>
+<span class="val">Name                  Mean        Median      StdDev     Min         Max         Ops/sec</span>
+<span class="sep">────────────────────────────────────────────────────────────────────────</span>
+<span class="name">sort_list</span>             <span class="val">142.3 &micro;s    141.8 &micro;s    2.1 &micro;s     138.9 &micro;s    149.2 &micro;s      7,027</span>
+<span class="name">hash_string</span>           <span class="val">  8.4 &micro;s      8.3 &micro;s    0.2 &micro;s       8.1 &micro;s      9.0 &micro;s    119,048</span>
+<span class="name">list comprehension</span>    <span class="val">412.7 &micro;s    411.2 &micro;s    3.8 &micro;s     406.1 &micro;s    422.5 &micro;s      2,423</span>
+<span class="sep">────────────────────────────────────────────────────────────────────────</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<hr class="section-rule max-w-4xl mx-auto">
+
+
+<!-- ========== CLI ========== -->
+<section id="cli" class="py-20 px-6">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-pyblue-50 mb-4">Command Line Interface</h2>
+        <p class="font-serif text-pyblue-300 mb-12 leading-relaxed">
+            pybench includes a CLI that discovers and runs benchmark files automatically.
+            Files matching <code>bench_*.py</code> or <code>*_bench.py</code> are discovered.
+        </p>
+
+        <!-- pybench run -->
+        <div class="mb-14">
+            <h3 class="font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <span class="text-pygold-300">$</span> pybench run
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Discover and run benchmarks in the current directory or a specific path.
+            </p>
+
+            <div class="code-block mb-6">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="cm"># Run all benchmarks in current directory</span>
+<span class="shell-prompt">$</span> pybench run
+
+<span class="cm"># Run benchmarks in a specific directory</span>
+<span class="shell-prompt">$</span> pybench run benchmarks/
+
+<span class="cm"># Run a single benchmark file</span>
+<span class="shell-prompt">$</span> pybench run bench_sorting.py
+
+<span class="cm"># Output JSON instead of table</span>
+<span class="shell-prompt">$</span> pybench run --json
+
+<span class="cm"># Save results to a file for later comparison</span>
+<span class="shell-prompt">$</span> pybench run --save results.json
+
+<span class="cm"># Control warmup and iteration count</span>
+<span class="shell-prompt">$</span> pybench run --warmup <span class="nu">10</span> --iterations <span class="nu">500</span></pre>
+            </div>
+
+            <p class="font-serif text-sm text-pyblue-400 leading-relaxed">
+                <i class="fa-solid fa-circle-info text-pyblue-500 mr-1"></i>
+                Benchmark files use the module-level <code>@pybench.benchmark</code> decorator.
+                The CLI imports each file and collects decorated functions.
+            </p>
+        </div>
+
+        <!-- Example benchmark file -->
+        <div class="mb-14">
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-lg text-pyblue-50 mb-4">
+                <i class="fa-solid fa-file-lines text-pygold-300 text-base"></i>
+                bench_sorting.py
+            </h3>
+
+            <div class="code-block">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="kw">import</span> <span class="fn">pybench</span>
+
+data = <span class="bi">list</span>(<span class="bi">range</span>(<span class="nu">1000</span>, <span class="nu">0</span>, -<span class="nu">1</span>))
+
+<span class="dc">@pybench.benchmark</span>
+<span class="kw">def</span> <span class="fn">builtin_sort</span>():
+    <span class="bi">sorted</span>(data)
+
+<span class="dc">@pybench.benchmark</span>
+<span class="kw">def</span> <span class="fn">reverse_then_sort</span>():
+    d = data[:]
+    d.reverse()
+    d.sort()</pre>
+            </div>
+        </div>
+
+        <!-- pybench compare -->
+        <div>
+            <h3 class="font-mono font-semibold text-xl text-pyblue-50 mb-2">
+                <span class="text-pygold-300">$</span> pybench compare
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Compare two saved benchmark runs to detect performance regressions or improvements.
+            </p>
+
+            <div class="code-block mb-6">
+                <button class="copy-btn" onclick="copyCode(this)">copy</button>
+<pre><span class="cm"># Save a baseline</span>
+<span class="shell-prompt">$</span> pybench run --save baseline.json
+
+<span class="cm"># ... make changes ...</span>
+
+<span class="cm"># Save current run and compare</span>
+<span class="shell-prompt">$</span> pybench run --save current.json
+<span class="shell-prompt">$</span> pybench compare baseline.json current.json</pre>
+            </div>
+
+            <div class="output-block">
+<span class="hdr">pybench comparison</span>
+<span class="sep">────────────────────────────────────────────────────────────────</span>
+<span class="val">Name                Baseline      Current       Change</span>
+<span class="sep">────────────────────────────────────────────────────────────────</span>
+<span class="name">builtin_sort</span>        <span class="val">45.2 &micro;s       44.8 &micro;s</span>       <span class="faster">-0.9% (faster)</span>
+<span class="name">reverse_then_sort</span>   <span class="val">38.1 &micro;s       42.3 &micro;s</span>       <span class="slower">+11.0% (slower)</span>
+<span class="sep">────────────────────────────────────────────────────────────────</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<hr class="section-rule max-w-4xl mx-auto">
+
+
+<!-- ========== API REFERENCE ========== -->
+<section id="reference" class="py-20 px-6">
+    <div class="max-w-3xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-pyblue-50 mb-4">API Reference</h2>
+        <p class="font-serif text-pyblue-300 mb-12 leading-relaxed">
+            Complete reference for all public classes, methods, and functions.
+        </p>
+
+        <!-- Bench class -->
+        <div class="mb-14">
+            <div class="flex items-baseline gap-3 mb-4">
+                <span class="font-mono text-xs text-pygold-300 bg-pygold-300/10 px-2 py-0.5 rounded">class</span>
+                <h3 class="font-mono text-xl text-pyblue-50">Bench</h3>
+            </div>
+            <div class="code-block mb-6">
+<pre><span class="fn">Bench</span>(warmup=<span class="nu">5</span>, iterations=<span class="kw">None</span>, target_time_ns=<span class="nu">1_000_000_000</span>)</pre>
+            </div>
+            <p class="font-serif text-pyblue-300 mb-4 leading-relaxed">
+                Central orchestrator for collecting and running benchmarks.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm font-mono">
+                    <thead>
+                        <tr class="text-left text-pyblue-400 border-b border-pyblue-700/50">
+                            <th class="pb-2 pr-6">Parameter</th>
+                            <th class="pb-2 pr-6">Type</th>
+                            <th class="pb-2 pr-6">Default</th>
+                            <th class="pb-2">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-pyblue-200">
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2.5 pr-6 text-pygold-300">warmup</td>
+                            <td class="py-2.5 pr-6 text-pyblue-400">int</td>
+                            <td class="py-2.5 pr-6">5</td>
+                            <td class="py-2.5 font-serif">Warmup iterations before measurement</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2.5 pr-6 text-pygold-300">iterations</td>
+                            <td class="py-2.5 pr-6 text-pyblue-400">int | None</td>
+                            <td class="py-2.5 pr-6">None</td>
+                            <td class="py-2.5 font-serif">Fixed iteration count, or None for auto-calibration</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2.5 pr-6 text-pygold-300">target_time_ns</td>
+                            <td class="py-2.5 pr-6 text-pyblue-400">int</td>
+                            <td class="py-2.5 pr-6">1B</td>
+                            <td class="py-2.5 font-serif">Target total time for auto-calibration (~1 second)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Bench methods -->
+        <div class="space-y-10 mb-14">
+            <!-- benchmark -->
+            <div class="pl-4 border-l-2 border-pyblue-700/50">
+                <div class="flex items-baseline gap-3 mb-2">
+                    <span class="font-mono text-xs text-pyblue-400 bg-pyblue-800/50 px-2 py-0.5 rounded">method</span>
+                    <h4 class="font-mono text-pyblue-50">bench.benchmark(fn=None, *, warmup=None, iterations=None)</h4>
+                </div>
+                <p class="font-serif text-sm text-pyblue-300 leading-relaxed">
+                    Decorator to register a function as a benchmark. Can be used with or without parentheses.
+                    Per-benchmark <code>warmup</code> and <code>iterations</code> override the <code>Bench</code>-level defaults.
+                </p>
+            </div>
+
+            <!-- measure -->
+            <div class="pl-4 border-l-2 border-pyblue-700/50">
+                <div class="flex items-baseline gap-3 mb-2">
+                    <span class="font-mono text-xs text-pyblue-400 bg-pyblue-800/50 px-2 py-0.5 rounded">method</span>
+                    <h4 class="font-mono text-pyblue-50">bench.measure(name: str)</h4>
+                </div>
+                <p class="font-serif text-sm text-pyblue-300 leading-relaxed">
+                    Context manager that times the enclosed block and records a single-sample result.
+                    Returns immediately &mdash; timing happens on context exit.
+                </p>
+            </div>
+
+            <!-- run -->
+            <div class="pl-4 border-l-2 border-pyblue-700/50">
+                <div class="flex items-baseline gap-3 mb-2">
+                    <span class="font-mono text-xs text-pyblue-400 bg-pyblue-800/50 px-2 py-0.5 rounded">method</span>
+                    <h4 class="font-mono text-pyblue-50">bench.run() &rarr; list[BenchmarkResult]</h4>
+                </div>
+                <p class="font-serif text-sm text-pyblue-300 leading-relaxed">
+                    Execute all registered benchmarks and return a list of results.
+                    Context manager results are included automatically.
+                </p>
+            </div>
+
+            <!-- report -->
+            <div class="pl-4 border-l-2 border-pyblue-700/50">
+                <div class="flex items-baseline gap-3 mb-2">
+                    <span class="font-mono text-xs text-pyblue-400 bg-pyblue-800/50 px-2 py-0.5 rounded">method</span>
+                    <h4 class="font-mono text-pyblue-50">bench.report(json_output: bool = False)</h4>
+                </div>
+                <p class="font-serif text-sm text-pyblue-300 leading-relaxed">
+                    Print results to stdout as a formatted table (default) or JSON.
+                    Automatically calls <code>run()</code> if benchmarks haven't been executed yet.
+                </p>
+            </div>
+
+            <!-- to_json -->
+            <div class="pl-4 border-l-2 border-pyblue-700/50">
+                <div class="flex items-baseline gap-3 mb-2">
+                    <span class="font-mono text-xs text-pyblue-400 bg-pyblue-800/50 px-2 py-0.5 rounded">method</span>
+                    <h4 class="font-mono text-pyblue-50">bench.to_json() &rarr; str</h4>
+                </div>
+                <p class="font-serif text-sm text-pyblue-300 leading-relaxed">
+                    Return results as a JSON string with platform metadata (Python version, OS, timestamp).
+                    Automatically calls <code>run()</code> if benchmarks haven't been executed yet.
+                </p>
+            </div>
+        </div>
+
+        <!-- BenchmarkResult -->
+        <div class="mb-14">
+            <div class="flex items-baseline gap-3 mb-4">
+                <span class="font-mono text-xs text-pygold-300 bg-pygold-300/10 px-2 py-0.5 rounded">dataclass</span>
+                <h3 class="font-mono text-xl text-pyblue-50">BenchmarkResult</h3>
+            </div>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                Immutable result object containing timing data and computed statistics.
+                Created by <code>Bench.run()</code> &mdash; you typically don't construct these directly.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm font-mono">
+                    <thead>
+                        <tr class="text-left text-pyblue-400 border-b border-pyblue-700/50">
+                            <th class="pb-2 pr-6">Field</th>
+                            <th class="pb-2 pr-6">Type</th>
+                            <th class="pb-2">Description</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-pyblue-200">
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">name</td>
+                            <td class="py-2 pr-6 text-pyblue-400">str</td>
+                            <td class="py-2 font-serif">Benchmark name</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">times_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">list[int]</td>
+                            <td class="py-2 font-serif">Raw timing data in nanoseconds</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">iterations</td>
+                            <td class="py-2 pr-6 text-pyblue-400">int</td>
+                            <td class="py-2 font-serif">Number of measured iterations</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">mean_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">float</td>
+                            <td class="py-2 font-serif">Arithmetic mean of timings</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">median_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">float</td>
+                            <td class="py-2 font-serif">Median timing</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">stddev_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">float</td>
+                            <td class="py-2 font-serif">Standard deviation</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">min_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">int</td>
+                            <td class="py-2 font-serif">Fastest timing</td>
+                        </tr>
+                        <tr class="border-b border-pyblue-800/50">
+                            <td class="py-2 pr-6 text-pygold-300">max_ns</td>
+                            <td class="py-2 pr-6 text-pyblue-400">int</td>
+                            <td class="py-2 font-serif">Slowest timing</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 pr-6 text-pygold-300">ops_per_sec</td>
+                            <td class="py-2 pr-6 text-pyblue-400">float</td>
+                            <td class="py-2 font-serif">Operations per second (1B / mean_ns)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Module-level decorator -->
+        <div class="mb-14">
+            <div class="flex items-baseline gap-3 mb-4">
+                <span class="font-mono text-xs text-pygold-300 bg-pygold-300/10 px-2 py-0.5 rounded">function</span>
+                <h3 class="font-mono text-xl text-pyblue-50">benchmark(fn=None, *, warmup=None, iterations=None)</h3>
+            </div>
+            <p class="font-serif text-pyblue-300 mb-4 leading-relaxed">
+                Module-level decorator for use with the CLI. Functions decorated with
+                <code>@pybench.benchmark</code> are discovered and run by <code>pybench run</code>.
+            </p>
+            <div class="code-block">
+<pre><span class="kw">import</span> <span class="fn">pybench</span>
+
+<span class="dc">@pybench.benchmark</span>
+<span class="kw">def</span> <span class="fn">my_benchmark</span>():
+    <span class="cm"># This function will be discovered by `pybench run`</span>
+    <span class="bi">sorted</span>(<span class="bi">range</span>(<span class="nu">1000</span>, <span class="nu">0</span>, -<span class="nu">1</span>))</pre>
+            </div>
+        </div>
+
+        <!-- JSON schema -->
+        <div>
+            <h3 class="flex items-center gap-3 font-mono font-semibold text-xl text-pyblue-50 mb-4">
+                <i class="fa-solid fa-brackets-curly text-pygold-300 text-base"></i>
+                JSON Output Schema
+            </h3>
+            <p class="font-serif text-pyblue-300 mb-6 leading-relaxed">
+                <code>bench.to_json()</code> and <code>pybench run --json</code> produce this structure:
+            </p>
+            <div class="code-block">
+<pre>{
+  <span class="fn">"metadata"</span>: {
+    <span class="fn">"python_version"</span>: <span class="st">"3.12.1"</span>,
+    <span class="fn">"platform"</span>: <span class="st">"Linux"</span>,
+    <span class="fn">"timestamp"</span>: <span class="st">"2026-02-13T12:00:00+00:00"</span>
+  },
+  <span class="fn">"results"</span>: [
+    {
+      <span class="fn">"name"</span>: <span class="st">"sort_list"</span>,
+      <span class="fn">"iterations"</span>: <span class="nu">1000</span>,
+      <span class="fn">"mean_ns"</span>: <span class="nu">142300.0</span>,
+      <span class="fn">"median_ns"</span>: <span class="nu">141800.0</span>,
+      <span class="fn">"stddev_ns"</span>: <span class="nu">2100.0</span>,
+      <span class="fn">"min_ns"</span>: <span class="nu">138900</span>,
+      <span class="fn">"max_ns"</span>: <span class="nu">149200</span>,
+      <span class="fn">"ops_per_sec"</span>: <span class="nu">7027.4</span>
+    }
+  ]
+}</pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<hr class="section-rule max-w-4xl mx-auto">
+
+
+<!-- ========== FOOTER ========== -->
+<footer class="py-16 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+        <div class="flex items-center justify-center gap-3 mb-6">
+            <div class="w-8 h-8 rounded-md bg-gradient-to-br from-pygold-300 to-pygold-500 flex items-center justify-center">
+                <i class="fa-solid fa-gauge-high text-pyblue-900 text-sm"></i>
+            </div>
+            <span class="font-mono font-bold text-lg text-pyblue-100">pybench</span>
+        </div>
+        <p class="font-serif text-pyblue-400 mb-6">
+            MIT License &copy; 2026 Joseph R Quinn
+        </p>
+        <div class="flex items-center justify-center gap-6 font-mono text-sm text-pyblue-500">
+            <a href="https://github.com/quinnjr/pybench" target="_blank" class="hover:text-pygold-300 transition-colors">
+                <i class="fa-brands fa-github mr-1.5"></i>Source
+            </a>
+            <a href="https://github.com/quinnjr/pybench/issues" target="_blank" class="hover:text-pygold-300 transition-colors">
+                <i class="fa-solid fa-bug mr-1.5"></i>Issues
+            </a>
+            <a href="https://pypi.org/project/pybench/" target="_blank" class="hover:text-pygold-300 transition-colors">
+                <i class="fa-brands fa-python mr-1.5"></i>PyPI
+            </a>
+        </div>
+    </div>
+</footer>
+
+
+<script>
+// Mobile menu toggle
+document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+    const menu = document.getElementById('mobile-menu');
+    menu.classList.toggle('hidden');
+});
+
+// Close mobile menu on link click
+document.querySelectorAll('#mobile-menu a').forEach(link => {
+    link.addEventListener('click', () => {
+        document.getElementById('mobile-menu').classList.add('hidden');
+    });
+});
+
+// Copy button
+function copyCode(btn) {
+    const pre = btn.parentElement.querySelector('pre');
+    const text = pre.textContent.replace(/^\$ /gm, '');
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'copied!';
+        setTimeout(() => btn.textContent = 'copy', 2000);
+    });
+}
+
+// Fade-in on scroll
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.style.opacity = '1';
+            entry.target.style.transform = 'translateY(0)';
+        }
+    });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.feature-card').forEach((card, i) => {
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(20px)';
+    card.style.transition = `opacity 0.5s ease ${i * 0.08}s, transform 0.5s ease ${i * 0.08}s`;
+    observer.observe(card);
+});
+</script>
+
+</body>
+</html>
