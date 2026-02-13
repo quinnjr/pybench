@@ -53,6 +53,11 @@ def test_format_json_structure():
     assert data["results"][0]["name"] == "bench1"
 
 
+def test_format_table_empty():
+    from pybench.reporter import format_table
+    assert format_table([]) == "No benchmark results."
+
+
 def test_format_json_is_valid_json():
     results = [_make_result("x", [1000])]
     raw = format_json(results)

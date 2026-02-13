@@ -44,7 +44,7 @@ Issues = "https://github.com/quinnjr/pybench/issues"
 
 [project.optional-dependencies]
 rich = ["rich>=13.0"]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "coverage>=7.0"]
 
 [project.scripts]
 pybench = "pybench.cli:main"

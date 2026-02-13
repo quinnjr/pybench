@@ -64,6 +64,31 @@ def test_cli_run_save_json(tmp_path):
     assert "results" in data
 
 
+def test_cli_run_single_file(tmp_path, capsys):
+    bench_file = _create_bench_file(tmp_path, textwrap.dedent("""\
+        import pybench
+
+        @pybench.benchmark
+        def bench_add():
+            1 + 1
+    """))
+
+    with patch("sys.argv", ["pybench", "run", str(bench_file), "--json", "--iterations", "3", "--warmup", "0"]):
+        main()
+
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert len(data["results"]) >= 1
+
+
+def test_cli_run_no_benchmarks(tmp_path):
+    with patch("sys.argv", ["pybench", "run", str(tmp_path), "--iterations", "3", "--warmup", "0"]):
+        import pytest
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 1
+
+
 def test_cli_compare(tmp_path, capsys):
     baseline = {"metadata": {}, "results": [
         {"name": "sort", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,

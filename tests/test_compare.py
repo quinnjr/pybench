@@ -56,6 +56,73 @@ def test_compare_results_missing_in_current():
     assert diffs[0]["change_pct"] is None
 
 
+def test_compare_results_new_in_current():
+    baseline = _make_json([])
+    current = _make_json([
+        {"name": "new_bench", "mean_ns": 500.0, "median_ns": 500.0, "stddev_ns": 5.0,
+         "min_ns": 495, "max_ns": 505, "iterations": 50, "ops_per_sec": 2_000_000.0},
+    ])
+
+    diffs = compare_results(baseline, current)
+
+    assert len(diffs) == 1
+    assert diffs[0]["name"] == "new_bench"
+    assert diffs[0]["baseline_mean_ns"] is None
+    assert diffs[0]["current_mean_ns"] == 500.0
+    assert diffs[0]["change_pct"] is None
+
+
+def test_format_comparison_empty():
+    baseline = _make_json([])
+    current = _make_json([])
+    output = format_comparison(baseline, current)
+    assert output == "No benchmarks to compare."
+
+
+def test_format_comparison_faster():
+    baseline = _make_json([
+        {"name": "fast", "mean_ns": 2000.0, "median_ns": 2000.0, "stddev_ns": 20.0,
+         "min_ns": 1990, "max_ns": 2010, "iterations": 100, "ops_per_sec": 500_000.0},
+    ])
+    current = _make_json([
+        {"name": "fast", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,
+         "min_ns": 990, "max_ns": 1010, "iterations": 100, "ops_per_sec": 1_000_000.0},
+    ])
+
+    output = format_comparison(baseline, current)
+    assert "faster" in output
+
+
+def test_format_comparison_same():
+    baseline = _make_json([
+        {"name": "steady", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,
+         "min_ns": 990, "max_ns": 1010, "iterations": 100, "ops_per_sec": 1_000_000.0},
+    ])
+    current = _make_json([
+        {"name": "steady", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,
+         "min_ns": 990, "max_ns": 1010, "iterations": 100, "ops_per_sec": 1_000_000.0},
+    ])
+
+    output = format_comparison(baseline, current)
+    assert "same" in output
+
+
+def test_format_comparison_missing_and_new():
+    baseline = _make_json([
+        {"name": "gone", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,
+         "min_ns": 990, "max_ns": 1010, "iterations": 50, "ops_per_sec": 1_000_000.0},
+    ])
+    current = _make_json([
+        {"name": "added", "mean_ns": 500.0, "median_ns": 500.0, "stddev_ns": 5.0,
+         "min_ns": 495, "max_ns": 505, "iterations": 50, "ops_per_sec": 2_000_000.0},
+    ])
+
+    output = format_comparison(baseline, current)
+    assert "gone" in output
+    assert "added" in output
+    assert "N/A" in output
+
+
 def test_format_comparison_contains_names():
     baseline = _make_json([
         {"name": "sort", "mean_ns": 1000.0, "median_ns": 1000.0, "stddev_ns": 10.0,
